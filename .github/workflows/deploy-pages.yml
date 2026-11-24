@@ -35,7 +35,7 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
-        run: npm run build -- --base=/career-story-agent/
+        run: npm run build -- --base=/Career-story-agent/
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
