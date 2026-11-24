@@ -1,0 +1,45 @@
+
+# API 密钥
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Python 环境
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# 前端环境
+node_modules/
+frontend/dist/
+dist/
+
+# 数据库及用户数据
+backend/data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# 用户简历和生成文件
+*.docx
+*.doc
+*.pdf
+
+# 评测生成结果
+evaluation/reports/
+evaluation/resume_comparison/
+evaluation/resume_judge_cases.json
+.promptfoo/
+
+# 日志与系统文件
+*.log
+logs/
+.DS_Store
+Thumbs.db

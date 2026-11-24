@@ -1,0 +1,131 @@
+
+description: "Career Story Agent - Resume Quality Judge V2"
+
+prompts:
+  - "{{revised_text}}"
+
+providers:
+  - id: echo
+    label: "Latest Tailored Resume"
+
+defaultTest:
+  assert:
+    - type: javascript
+      metric: fact_boundary_preserved
+      value: |
+        const required = [
+          "尚未正式上线",
+          "没有业务增长数据",
+          "尚未进行真实用户规模测试",
+          "2025.06-2025.09"
+        ];
+        const allowedGrowthPhrases = [
+          "没有业务增长数据",
+          "暂无业务增长数据"
+        ];
+        const limits = required.filter(
+          x => x !== "没有业务增长数据"
+        );
+        return limits.every(x => output.includes(x)) &&
+          allowedGrowthPhrases.some(x => output.includes(x));
+
+    - type: llm-rubric
+      metric: factual_faithfulness
+      threshold: 0.8
+      provider:
+        id: deepseek:deepseek-flash
+        config:
+          showThinking: false
+          passthrough:
+            thinking:
+              type: disabled
+      value: |
+        你是一位严格的AI求职简历评测员。
+
+        原始简历：
+        {{original_text}}
+
+        请对比原始简历与待评测修改版。
+
+        检查：
+        1. 有没有编造实习、项目、职责或技能。
+        2. 有没有新增没有来源的成果或数字。
+        3. 有没有改变工作时间、项目状态。
+        4. 有没有把参与工作夸大成独立负责。
+        5. 有没有保留尚未上线等事实限制。
+
+        不要因为语言更专业就判定事实更准确。
+        对没有原文依据的新增事实严格扣分。
+
+        请给出0到1之间的评分和具体理由。
+        0.8及以上才建议通过。
+
+    - type: llm-rubric
+      metric: jd_relevance
+      threshold: 0.75
+      provider:
+        id: deepseek:deepseek-flash
+        config:
+          showThinking: false
+          passthrough:
+            thinking:
+              type: disabled
+      value: |
+        你是一位AI产品经理岗位招聘评估员。
+
+        目标岗位：
+        {{jd_title}}
+
+        JD：
+        {{jd_text}}
+
+        原始简历：
+        {{original_text}}
+
+        评价修改版是否比原简历更符合JD。
+
+        重点检查：
+        1. 是否突出需求分析与用户研究。
+        2. 是否突出PRD及原型设计。
+        3. 是否合理强调RAG相关经历。
+        4. 是否体现跨团队协作。
+        5. 是否如实说明缺少的能力。
+
+        不能仅凭关键词数量给高分。
+        应评价修改是否提升了经历证据的相关性。
+        原文没有的能力不应为了匹配JD而补造。
+
+        请给出0到1之间的评分和具体理由。
+
+    - type: llm-rubric
+      metric: rewrite_effectiveness
+      threshold: 0.7
+      provider:
+        id: deepseek:deepseek-flash
+        config:
+          showThinking: false
+          passthrough:
+            thinking:
+              type: disabled
+      value: |
+        你是一位专业的简历优化评测员。
+
+        原始简历：
+        {{original_text}}
+
+        请评价修改版相对于原简历的实际改善。
+
+        重点关注：
+        1. 表达是否更清晰具体。
+        2. 是否减少冗余。
+        3. 是否突出关键行动与成果。
+        4. 是否更适合AI产品经理岗位。
+        5. 是否有实质提升，而非简单替换同义词。
+
+        如果只是将整理改成梳理，
+        或仅增加岗位关键词，
+        不能给予很高的改写有效性分数。
+
+        请给出0到1之间的评分和具体理由。
+
+tests: file://resume_judge_cases.json

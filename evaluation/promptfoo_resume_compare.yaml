@@ -1,0 +1,172 @@
+
+description: "Career Story Agent - V1 V2 V3 Resume Comparison"
+
+prompts:
+  - "{{revised_text}}"
+
+providers:
+  - id: echo
+    label: "Historical and V3 Resume Outputs"
+
+defaultTest:
+  assert:
+
+    # 1. Factual faithfulness
+    - type: llm-rubric
+      metric: factual_faithfulness
+      threshold: 0.8
+      provider:
+        id: deepseek:deepseek-flash
+        config:
+          showThinking: false
+          passthrough:
+            thinking:
+              type: disabled
+      value: |
+        你是严格的简历事实保真评估员。
+
+        目标岗位：{{jd_title}}
+
+        原始简历：
+        {{original_text}}
+
+        用户已确认的补充证据：
+        {{confirmed_evidence}}
+
+        请评估待测简历的事实真实性。
+
+        唯一允许使用的事实来源是：
+        1. 原始简历。
+        2. 用户已确认的补充证据。
+
+        检查：
+        - 是否虚构职责、技术、行动或成果。
+        - 是否产生没有证据的新数字。
+        - 是否夸大个人贡献。
+        - 是否改变项目状态。
+        - 是否保留未上线、未验证等限制。
+        - 新增内容能否找到明确的事实来源。
+
+        不能仅凭措辞专业就给高分。
+        不得把JD当作候选人做过相关工作的证明。
+
+        对有明确证据的事实补充不应扣分；
+        对没有证据的新增事实应严格扣分。
+
+        给出0到1的评分及具体原因。
+
+    # 2. JD relevance
+    - type: llm-rubric
+      metric: jd_relevance
+      threshold: 0.75
+      provider:
+        id: deepseek:deepseek-flash
+        config:
+          showThinking: false
+          passthrough:
+            thinking:
+              type: disabled
+      value: |
+        你是AI产品经理岗位招聘评测员。
+
+        目标岗位：
+        {{jd_text}}
+
+        原始简历：
+        {{original_text}}
+
+        用户已确认的补充证据：
+        {{confirmed_evidence}}
+
+        请评估待测简历相比原始简历，
+        是否更有效地展现岗位相关能力。
+
+        重点：
+        1. 用户调研与需求分析。
+        2. PRD和产品原型设计。
+        3. RAG或AI产品设计经验。
+        4. 与研发团队协作。
+        5. 产品验证与效果评估。
+
+        不要只统计关键词数量。
+        应看具体经历能否支撑岗位能力。
+        JD要求但证据中没有的能力不能编造。
+
+        给出0到1的评分及具体原因。
+
+    # 3. Rewrite effectiveness
+    - type: llm-rubric
+      metric: rewrite_effectiveness
+      threshold: 0.7
+      provider:
+        id: deepseek:deepseek-flash
+        config:
+          showThinking: false
+          passthrough:
+            thinking:
+              type: disabled
+      value: |
+        你是专业的简历优化评测员。
+
+        原始简历：
+        {{original_text}}
+
+        用户已确认的补充证据：
+        {{confirmed_evidence}}
+
+        评价待测简历相对于原文的实际改写价值。
+
+        检查：
+        1. 是否突出更有价值的事实。
+        2. 是否重组信息，让个人行动更清晰。
+        3. 是否提升岗位适配度。
+        4. 是否减少重复和冗余。
+        5. 是否超越简单同义词替换。
+
+        只改连接词或增加关键词，
+        不应获得很高分数。
+
+        如果事实资料确实不足，
+        应说明改写空间有限，
+        但不能奖励未经证实的扩写。
+
+        给出0到1的评分及具体原因。
+
+    # 4. Confirmed experience grounding
+    - type: llm-rubric
+      metric: confirmed_evidence_usage
+      threshold: 0.7
+      provider:
+        id: deepseek:deepseek-flash
+        config:
+          showThinking: false
+          passthrough:
+            thinking:
+              type: disabled
+      value: |
+        你是求职Agent事实证据利用评测员。
+
+        原始Word：
+        {{original_text}}
+
+        用户已确认经历：
+        {{confirmed_evidence}}
+
+        请评估待测简历是否有效利用已确认经历。
+
+        重点：
+        1. 是否找到了原Word未突出但真实存在的事实。
+        2. 是否合理将这些事实融入相关经历。
+        3. 是否明确对应目标岗位能力。
+        4. 是否保持事实和个人贡献边界。
+        5. 是否仍有重要证据未被利用。
+
+        如果没有提供额外的已确认经历，
+        请明确说明缺少评测依据，
+        不要凭空假设有额外证据。
+
+        不得奖励虚构信息。
+
+        给出0到1的评分及具体原因。
+
+tests: file://resume_comparison/cases.json
