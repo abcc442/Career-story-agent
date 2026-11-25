@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
@@ -25,8 +26,14 @@ const PAGE_DESCRIPTION: Record<Page, { title: string; sub: string }> = {
   interview: { title: '面试准备：从能力主线到真实追问', sub: '选择目标岗位，查看职业主线与自我介绍，并基于已确认经历开始模拟面试。' },
 };
 
-function StatusPill({ mode }: { mode: Mode }) {
-  return <span className={'mode-pill ' + (mode === 'ai' ? 'is-ai' : '')}><span className="live-dot" />{mode === 'ai' ? '真实 AI 模式' : '本地规则演示'}</span>;
+function StatusPill({ mode, status }: { mode: Mode; status: 'loading' | 'ready' | 'error' }) {
+  const label = status === 'loading' ? '正在连接 AI 服务…'
+    : status === 'error' ? '连接失败'
+    : mode === 'ai' ? '真实 AI 模式' : '规则演示模式';
+  return <span className={'mode-pill ' + (status === 'ready' && mode === 'ai' ? 'is-ai' : '')}>
+    {status === 'loading' ? <LoaderCircle size={14} className="spin" /> : <span className="live-dot" />}
+    {label}
+  </span>;
 }
 function SectionHeading({ eyebrow, title, desc, right }: { eyebrow?: string; title: string; desc?: string; right?: ReactNode }) {
   return <div className="section-heading"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2>{desc && <p>{desc}</p>}</div>{right}</div>;
@@ -66,6 +73,7 @@ export default function App() {
   const [stories, setStories] = useState<Story[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [mode, setMode] = useState<Mode>('demo');
+  const [modeStatus, setModeStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [selectedJD, setSelectedJD] = useState<number | null>(null);
   const [selectedStory, setSelectedStory] = useState<number | null>(null);
   const [busy, setBusy] = useState('');
@@ -82,7 +90,13 @@ export default function App() {
     setSelectedJD(prev => prev && roles.some(j => j.id === prev) ? prev : roles[0]?.id ?? null);
     setSelectedStory(prev => prev && narratives.some(s => s.id === prev) ? prev : narratives[0]?.id ?? null);
   }, []);
-  useEffect(() => { reload().catch((err: Error) => setError(err.message)); }, [reload]);
+  useEffect(() => {
+    setModeStatus('loading');
+    reload().then(() => setModeStatus('ready')).catch((err: Error) => {
+      setModeStatus('error');
+      setError(err.message);
+    });
+  }, [reload]);
   useEffect(() => { if (notice) { const t = window.setTimeout(() => setNotice(''), 5000); return () => clearTimeout(t); } }, [notice]);
 
   async function perform<T>(label: string, action: () => Promise<T>): Promise<T | undefined> {
@@ -148,14 +162,14 @@ export default function App() {
     <div className="main-area">
       <header className="topbar">
         <div className="topbar-left"><button className="mobile-menu" onClick={() => setMenuOpen(true)} aria-label="打开菜单"><Menu size={21} /></button><span className="breadcrumb">我的工作台</span><ChevronRight size={15} className="muted-icon"/><span className="crumb-current">{NAV.find(n => n.id === page)?.label}</span></div>
-        <div className="topbar-right"><StatusPill mode={mode} /><div className="avatar">CS</div></div>
+        <div className="topbar-right"><StatusPill mode={mode} status={modeStatus} /><div className="avatar">CS</div></div>
       </header>
       <main className="page-wrap">
         {error && <div role="alert" className="alert error"><CircleAlert size={18}/><span>{error}</span><button aria-label="关闭错误" onClick={() => setError('')}><X size={17}/></button></div>}
         {notice && <div role="status" className="alert success"><CheckCircle2 size={18}/><span>{notice}</span><button aria-label="关闭提示" onClick={() => setNotice('')}><X size={17}/></button></div>}
         {busy && <div className="working-indicator"><LoaderCircle size={15} className="spin"/> {busy}…</div>}
         <div className="page-heading"><div className="page-kicker"><span className="kicker-line"/>YOUR CAREER, BETTER TOLD</div><h1>{PAGE_DESCRIPTION[page].title}</h1><p>{PAGE_DESCRIPTION[page].sub}</p></div>
-        {mode === 'demo' && <div className="demo-notice"><Lightbulb size={17}/><span>当前为<strong>规则演示模式</strong>：不具备大模型语义理解与面试评价能力。配置 API Key 后，系统将使用真正的 AI Agent。</span></div>}
+        {modeStatus === 'ready' && mode === 'demo' && <div className="demo-notice"><Lightbulb size={17}/><span>当前为<strong>规则演示模式</strong>：不具备大模型语义理解与面试评价能力。配置 API Key 后，系统将使用真正的 AI Agent。</span></div>}
         {page === 'home' && <HomePage navigate={navigate} experiences={experiences} confirmed={confirmed} jds={jds} stories={stories} seed={seed} exportData={exportData} wipe={wipe} busy={!!busy} />}
         {page === 'experiences' && <ExperiencesPage experiences={experiences} reload={reload} perform={perform} busy={!!busy} setNotice={setNotice} />}
         {page === 'jd' && <JDPage jds={jds} selectedJD={selectedJD} setSelectedJD={setSelectedJD} confirmedCount={confirmed.length} reload={reload} perform={perform} generateStory={generateStory} busy={!!busy} setNotice={setNotice} />}
