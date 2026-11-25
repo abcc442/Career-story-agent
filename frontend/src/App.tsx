@@ -82,20 +82,35 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const reload = useCallback(async () => {
-    const [exp, roles, narratives, sessions, info] = await Promise.all([
-      api.experiences(), api.jds(), api.stories(), api.interviews(), api.meta(),
+    const [exp, roles, narratives, sessions] = await Promise.all([
+      api.experiences(), api.jds(), api.stories(), api.interviews(),
     ]);
     setExperiences(exp); setJds(roles); setStories(narratives); setInterviews(sessions);
-    setMode(info.mode);
     setSelectedJD(prev => prev && roles.some(j => j.id === prev) ? prev : roles[0]?.id ?? null);
     setSelectedStory(prev => prev && narratives.some(s => s.id === prev) ? prev : narratives[0]?.id ?? null);
   }, []);
+  // AI mode is checked separately from workspace data.
   useEffect(() => {
-    setModeStatus('loading');
-    reload().then(() => setModeStatus('ready')).catch((err: Error) => {
-      setModeStatus('error');
-      setError(err.message);
-    });
+    let active = true;
+
+    api.meta()
+      .then(info => {
+        if (!active) return;
+        setMode(info.mode);
+        setModeStatus('ready');
+      })
+      .catch((err: Error) => {
+        if (!active) return;
+        setModeStatus('error');
+        setError(err.message);
+      });
+
+    return () => { active = false; };
+  }, []);
+
+  // Load experiences, JDs, stories and interviews independently.
+  useEffect(() => {
+    reload().catch((err: Error) => setError(err.message));
   }, [reload]);
   useEffect(() => { if (notice) { const t = window.setTimeout(() => setNotice(''), 5000); return () => clearTimeout(t); } }, [notice]);
 
