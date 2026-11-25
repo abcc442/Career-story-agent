@@ -152,3 +152,42 @@
 .v3-notes { border-top:1px solid #e6e0f5; padding-top:14px; margin:16px 0; }
 .v3-notes li { font-size:13px; line-height:1.8; margin-top:6px; }
 @media (max-width:700px) { .v3-text-pair { grid-template-columns:1fr; } .v3-preview { padding:12px; } }
+
+
+/* Experience import & extraction feedback, 2026-11 */
+.upload-zone-state{min-height:146px;padding:18px 16px;text-align:center;gap:7px;overflow:hidden}
+.upload-zone-state.is-reading{background:#f5f2ff;border-color:#9486e7;cursor:progress}
+.upload-zone-state.is-ready{background:#f2faf6;border-color:#91d4b4;color:#31a275}
+.upload-zone-state.is-ready strong{color:#258a62}
+.upload-zone-state.is-error{background:#fff7f7;border-color:#edb2b9;color:#c45e6c}
+.upload-zone-state.is-error strong{color:#be5563}
+.upload-zone-state .upload-filename{max-width:85%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;font-size:11px;color:#50556b}
+.upload-zone-state .upload-replace-hint{color:#458f74;font-size:10px}
+.upload-zone-state input:disabled{cursor:progress}
+.upload-indeterminate{width:min(230px,75%);height:5px;border-radius:100px;background:#e7e1ff;overflow:hidden;display:block;margin-top:5px}
+.upload-indeterminate>span{display:block;height:100%;width:38%;border-radius:100px;background:#7667dd;animation:upload-loading 1.25s ease-in-out infinite alternate}
+@keyframes upload-loading{from{transform:translateX(-60%)}to{transform:translateX(230%)}}
+.extract-inline-state{margin-top:15px;display:flex;align-items:center;gap:13px;padding:16px;background:#f5f2ff;border:1px solid #e2dcfa;border-radius:12px;color:#7665cd;animation:experience-appear .22s ease-out}
+.extract-state-icon{display:grid;place-items:center;flex-shrink:0;width:42px;height:42px;border-radius:12px;background:#e8e1ff}
+.extract-inline-state>div:nth-child(2){flex:1;min-width:0}
+.extract-inline-state strong{font-size:12px;color:#524b82}
+.extract-inline-state p{font-size:11px;color:#817b9d;margin:4px 0 0;line-height:1.6}
+.extract-animated-dots{font-size:17px;letter-spacing:3px;animation:extract-pulse 1.3s ease-in-out infinite}
+.extract-inline-state.is-done{background:#f2faf6;border-color:#d1efe0;color:#288f66;font-size:12px}
+.extract-inline-state.is-error{background:#fff5f6;border-color:#f3d8dc;color:#b85a68;font-size:12px}
+@keyframes extract-pulse{50%{opacity:.3}}
+@keyframes experience-appear{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.saved-modal-backdrop{position:fixed;inset:0;z-index:130;background:rgba(23,24,51,.48);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:20px;animation:experience-appear .18s ease-out}
+.saved-modal{width:min(430px,100%);position:relative;padding:36px 34px 30px;background:white;border-radius:23px;box-shadow:0 28px 90px #1f1a492b;text-align:center;animation:experience-pop .25s cubic-bezier(.19,.8,.32,1.2)}
+@keyframes experience-pop{from{opacity:.5;transform:scale(.94) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.saved-modal-icon{height:74px;width:74px;border-radius:25px;display:grid;place-items:center;margin:0 auto 18px;background:linear-gradient(140deg,#ede9ff,#e4f8f0);color:#6857d6}
+.saved-modal h2{font-size:23px;color:#292944;margin:0 0 10px}
+.saved-modal-subtitle{font-size:13px;color:#777b93;line-height:1.8;margin:0 0 22px;overflow-wrap:anywhere}
+.saved-modal-detail{text-align:left;padding:16px 18px;border:1px solid #e8e5f7;border-radius:13px;background:#faf9ff;margin-bottom:22px}
+.saved-modal-detail>div{display:flex;gap:9px;align-items:center;color:#6758c7;font-size:12px}
+.saved-modal-detail p{font-size:11px;color:#858ca3;line-height:1.8;margin:9px 0 0}
+.saved-modal-button{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:46px;border:0;border-radius:10px;color:#fff;font-weight:750;font-size:13px;background:#695dd5;box-shadow:0 6px 16px #6b5dd233}
+.saved-modal-button:hover{background:#584bca}
+.saved-modal-close{position:absolute;right:15px;top:15px;border:0;background:transparent;color:#9ea2b5;padding:8px}
+@media(max-width:600px){.saved-modal{padding:32px 22px 24px}.saved-modal h2{font-size:21px}.extract-inline-state{padding:12px}.extract-animated-dots{display:none}}
+@media(prefers-reduced-motion:reduce){.saved-modal,.saved-modal-backdrop,.extract-inline-state{animation:none}.upload-indeterminate>span,.extract-animated-dots{animation:none}}

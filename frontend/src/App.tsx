@@ -182,7 +182,7 @@ export default function App() {
       <main className="page-wrap">
         {error && <div role="alert" className="alert error"><CircleAlert size={18}/><span>{error}</span><button aria-label="关闭错误" onClick={() => setError('')}><X size={17}/></button></div>}
         {notice && <div role="status" className="alert success"><CheckCircle2 size={18}/><span>{notice}</span><button aria-label="关闭提示" onClick={() => setNotice('')}><X size={17}/></button></div>}
-        {busy && <div className="working-indicator"><LoaderCircle size={15} className="spin"/> {busy}…</div>}
+        {busy && !['解析文件', '识别经历', '保存草稿'].includes(busy) && <div className="working-indicator"><LoaderCircle size={15} className="spin"/> {busy}…</div>}
         <div className="page-heading"><div className="page-kicker"><span className="kicker-line"/>YOUR CAREER, BETTER TOLD</div><h1>{PAGE_DESCRIPTION[page].title}</h1><p>{PAGE_DESCRIPTION[page].sub}</p></div>
         {modeStatus === 'ready' && mode === 'demo' && <div className="demo-notice"><Lightbulb size={17}/><span>当前为<strong>规则演示模式</strong>：不具备大模型语义理解与面试评价能力。配置 API Key 后，系统将使用真正的 AI Agent。</span></div>}
         {page === 'home' && <HomePage navigate={navigate} experiences={experiences} confirmed={confirmed} jds={jds} stories={stories} seed={seed} exportData={exportData} wipe={wipe} busy={!!busy} />}
@@ -227,19 +227,67 @@ function ExperiencesPage({ experiences, reload, perform, busy, setNotice }: {
   const [answer, setAnswer] = useState('');
   const [proposal, setProposal] = useState<{field: keyof ExperiencePayload; proposed_value: string; reason: string} | null>(null);
   const [typeFilter, setTypeFilter] = useState('all');
+  const [uploadState, setUploadState] = useState<'idle' | 'reading' | 'ready' | 'error'>('idle');
+  const [uploadedFile, setUploadedFile] = useState('');
+  const [uploadMessage, setUploadMessage] = useState('');
+  const [extractState, setExtractState] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
+  const [saveSuccess, setSaveSuccess] = useState<{title: string} | null>(null);
+  const extractedRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!saveSuccess) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSaveSuccess(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [saveSuccess]);
 
   async function readFile(file?: File) {
-    if (!file) return;
+    if (!file || uploadState === 'reading') return;
+    setUploadState('reading');
+    setUploadedFile(file.name);
+    setUploadMessage('正在读取文件内容，请勿重复上传');
+    setExtractState('idle');
+    setDrafts([]);
     const result = await perform('解析文件', () => api.readResume(file));
-    if (result) { setText(result.text); setNotice('文件文字已读取。请点击“识别经历草稿”。' + (result.truncated ? ' 内容已截断至25000字。' : '')); }
+    if (result) {
+      setText(result.text);
+      setUploadState('ready');
+      setUploadMessage(result.truncated ? '已提取文字（超过 25000 字的部分已截断）' : '文件文字已读取，可以继续识别经历');
+    } else {
+      setUploadState('error');
+      setUploadMessage('文件读取失败，请检查格式或重新上传');
+    }
   }
+
   async function extract() {
+    if (extractState === 'processing' || text.trim().length < 10) return;
+    setExtractState('processing');
+    setDrafts([]);
     const result = await perform('识别经历', () => api.extract(text));
-    if (result) { setDrafts(result.experiences.map(e => ({...emptyExperience(), ...e, status: 'draft'}))); setExtractNote(result.note); }
+    if (result) {
+      setDrafts(result.experiences.map(e => ({...emptyExperience(), ...e, status: 'draft'})));
+      setExtractNote(result.note);
+      setExtractState('success');
+      window.requestAnimationFrame(() => {
+        extractedRef.current?.scrollIntoView({behavior: 'smooth', block: 'center'});
+      });
+    } else {
+      setExtractState('error');
+    }
   }
+
   async function saveDraft(d: ExperiencePayload, idx: number) {
-    const result = await perform('保存草稿', async () => { const row = await api.createExperience(d); await reload(); return row; });
-    if (result) { setDrafts(old => old.filter((_, i) => i !== idx)); setNotice('草稿已保存。请补充事实并确认后用于岗位匹配。'); }
+    const result = await perform('保存草稿', async () => {
+      const row = await api.createExperience(d);
+      await reload();
+      return row;
+    });
+    if (result) {
+      setDrafts(old => old.filter((_, i) => i !== idx));
+      setSaveSuccess({title: result.title || d.title});
+    }
   }
   function edit(exp?: Experience) {
     setEditingId(exp?.id ?? null);
@@ -284,8 +332,34 @@ function ExperiencesPage({ experiences, reload, perform, busy, setNotice }: {
     {key: 'evidence', label: '证据或补充说明', placeholder: '作品链接、文档名称或需要注意的事实边界。'},
   ];
   return <div className="content-grid"><div className="content-main">
-    <section className="panel import-panel"><SectionHeading eyebrow="IMPORT YOUR EXPERIENCE" title="从现有材料开始" desc="上传简历或粘贴项目文字，先识别，再人工确认。"/><label className="upload-zone"><Upload size={22}/><strong>上传简历文件</strong><span>支持 PDF / DOCX / TXT / MD · 最大 5MB</span><input type="file" accept=".pdf,.docx,.txt,.md" onChange={e => { void readFile(e.target.files?.[0]); e.target.value=''; }} /></label><div className="or-divider"><span>或者直接粘贴文字</span></div><textarea className="big-textarea" value={text} onChange={e => setText(e.target.value)} placeholder={'例如：\n供应商风险系统｜产品实习\n参与业务需求分析，设计RAG检索方案…\n\nAI数字宠物项目\n负责用户旅程与产品原型…'} /><div className="import-actions"><span>提取结果只会生成草稿，不会自动写入正式经历。</span><Button onClick={extract} disabled={busy || text.trim().length < 10}><Sparkles size={16}/> 识别经历草稿</Button></div></section>
-    {drafts.length > 0 && <section className="panel extracted-panel"><SectionHeading eyebrow="REVIEW FIRST" title={`识别到 ${drafts.length} 段经历草稿`} desc={extractNote || '请核对信息；保存后仍需在编辑页确认事实。'} />{drafts.map((d, idx) => <div className="draft-row" key={idx}><div><b>{d.title}</b><p>{d.organization || d.evidence.slice(0, 95) || '待补充细节'}</p></div><Button variant="secondary" onClick={() => saveDraft(d, idx)} disabled={busy}><Plus size={15}/> 保存草稿</Button></div>)}</section>}
+    <section className="panel import-panel"><SectionHeading eyebrow="IMPORT YOUR EXPERIENCE" title="从现有材料开始" desc="上传简历或粘贴项目文字，先识别，再人工确认。"/><label className={'upload-zone upload-zone-state ' + (uploadState !== 'idle' ? `is-${uploadState}` : '')} aria-live="polite">
+      {uploadState === 'reading' ? <LoaderCircle size={29} className="spin" />
+        : uploadState === 'ready' ? <CheckCircle2 size={29} />
+        : uploadState === 'error' ? <CircleAlert size={29} />
+        : <Upload size={27} />}
+      <strong>{uploadState === 'reading' ? '正在读取简历…'
+        : uploadState === 'ready' ? '简历读取成功'
+        : uploadState === 'error' ? '读取失败，点击重新上传'
+        : '上传简历文件'}</strong>
+      {uploadedFile && uploadState !== 'idle' && <span className="upload-filename" title={uploadedFile}>{uploadedFile}</span>}
+      <span>{uploadState === 'idle' ? '支持 PDF / DOCX / TXT / MD · 最大 5MB' : uploadMessage}</span>
+      {uploadState === 'reading' && <span className="upload-indeterminate" aria-hidden="true"><span /></span>}
+      {uploadState === 'ready' && <span className="upload-replace-hint">点击可重新选择文件</span>}
+      <input type="file" aria-label="上传简历文件" disabled={uploadState === 'reading' || busy} accept=".pdf,.docx,.txt,.md" onChange={e => { void readFile(e.target.files?.[0]); e.target.value=''; }} />
+    </label><div className="or-divider"><span>或者直接粘贴文字</span></div><textarea className="big-textarea" value={text} onChange={e => {
+      setText(e.target.value);
+      setExtractState('idle');
+      if (uploadState === 'ready') {
+        setUploadState('idle');
+        setUploadedFile('');
+        setUploadMessage('');
+      }
+    }} placeholder={'例如：\n供应商风险系统｜产品实习\n参与业务需求分析，设计RAG检索方案…\n\nAI数字宠物项目\n负责用户旅程与产品原型…'} /><div className="import-actions"><span>提取结果只会生成草稿，不会自动写入正式经历。</span><Button onClick={extract} disabled={busy || text.trim().length < 10 || extractState === 'processing'}>{extractState === 'processing' ? <LoaderCircle size={16} className="spin" /> : <Sparkles size={16}/>} {extractState === 'processing' ? 'AI 正在识别…' : '识别经历草稿'}</Button></div>
+    {extractState === 'processing' && <div className="extract-inline-state" role="status"><div className="extract-state-icon"><LoaderCircle size={23} className="spin"/></div><div><strong>AI 正在梳理你的经历</strong><p>正在识别项目、个人行动和真实结果，完成后将在下方展示草稿。</p></div><span className="extract-animated-dots" aria-hidden="true">•••</span></div>}
+    {extractState === 'success' && drafts.length === 0 && <div className="extract-inline-state is-done" role="status"><CheckCircle2 size={21}/><span>识别已完成，但未找到可保存的经历，请补充更具体的文字后重试。</span></div>}
+    {extractState === 'error' && <div className="extract-inline-state is-error" role="status"><CircleAlert size={20}/><span>识别没有完成，请检查提示信息后重试。</span></div>}
+    </section>
+    {drafts.length > 0 && <section className="panel extracted-panel" ref={extractedRef}><SectionHeading eyebrow="REVIEW FIRST" title={`识别到 ${drafts.length} 段经历草稿`} desc={extractNote || '请核对信息；保存后仍需在编辑页确认事实。'} />{drafts.map((d, idx) => <div className="draft-row" key={idx}><div><b>{d.title}</b><p>{d.organization || d.evidence.slice(0, 95) || '待补充细节'}</p></div><Button variant="secondary" onClick={() => saveDraft(d, idx)} disabled={busy}><Plus size={15}/> 保存草稿</Button></div>)}</section>}
     <section className="panel experience-list"><SectionHeading eyebrow="EXPERIENCE LIBRARY" title={`我的经历库 · ${experiences.length}`} desc="只有“已确认”的经历会参与 JD 匹配和职业故事生成。" right={<Button variant="secondary" onClick={() => edit()}><Plus size={16}/> 手动添加</Button>} />
       <div className="experience-filters">{[['all','全部'],['internship','实习'],['work','工作'],['project','项目'],['research','科研'],['competition','竞赛'],['campus','校园'],['other','待分类/其他']].map(([key,label]) => <button key={key} className={typeFilter===key?'active':''} onClick={() => setTypeFilter(key)}>{label}</button>)}</div>
       {experiences.length === 0 ? <EmptyState icon={BookOpen} title="经历库还是空的" text="先导入简历，或从一段实习/项目开始记录。" /> : experiences.filter(exp => typeFilter === 'all' || (exp.experience_type || 'other') === typeFilter).map(exp => <div className="experience-row" key={exp.id} onClick={() => edit(exp)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && edit(exp)}><div className="record-icon"><BriefcaseBusiness size={19}/></div><div className="record-content"><div className="record-title"><strong>{exp.title}</strong><span className={'tag ' + (exp.status === 'confirmed' ? 'tag-green' : 'tag-amber')}>{exp.status === 'confirmed' ? '已确认' : '待确认'}</span>{exp.source === 'demo' && <span className="tag tag-lilac">示例</span>}</div><p><span className="tag tag-lilac">{{internship:'实习',work:'工作',project:'项目',research:'科研',competition:'竞赛',campus:'校园',other:'待分类/其他'}[exp.experience_type] || '待分类/其他'}</span> {exp.organization || '未填写组织'}{exp.period && ` · ${exp.period}`}</p><div className="record-tags">{exp.skills.slice(0, 4).map(s => <span key={s}>{s}</span>)}</div></div><ChevronRight size={19} className="record-chevron"/></div>)}
@@ -294,6 +368,16 @@ function ExperiencesPage({ experiences, reload, perform, busy, setNotice }: {
     {form && <div className="drawer-backdrop" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) setForm(null); }}><div className="edit-drawer" role="dialog" aria-modal="true" aria-label="编辑个人经历"><div className="drawer-top"><div><div className="eyebrow">EXPERIENCE DETAILS</div><h2>{editingId ? '完善这段经历' : '新增个人经历'}</h2></div><button className="icon-button" onClick={() => setForm(null)} aria-label="关闭"><X size={20}/></button></div><div className="drawer-body"><div className="field-grid"><label className="field"><span>经历名称 *</span><input value={form.title} onChange={e => setForm({...form, title: e.target.value, status: 'draft'})} placeholder="例如：AI产品实习"/></label><label className="field"><span>所属组织</span><input value={form.organization} onChange={e => setForm({...form, organization: e.target.value, status: 'draft'})} placeholder="公司 / 学校 / 个人项目"/></label></div><div className="field-grid"><label className="field"><span>经历类型</span><select value={form.experience_type} onChange={e => setForm({...form, experience_type: e.target.value as ExperiencePayload['experience_type'], status: 'draft'})}><option value="internship">实习经历</option><option value="work">正式工作</option><option value="project">独立项目</option><option value="research">学术科研</option><option value="competition">竞赛经历</option><option value="campus">校园经历</option><option value="other">其他</option></select></label><label className="field"><span>所属实习/工作（选填）</span><select value={form.parent_experience_id ?? ''} onChange={e => setForm({...form, parent_experience_id: e.target.value ? Number(e.target.value) : null, status: 'draft'})}><option value="">不关联</option>{experiences.filter(x => x.id !== editingId && ['internship','work'].includes(x.experience_type)).map(x => <option key={x.id} value={x.id}>{x.title}</option>)}</select></label></div><label className="field"><span>时间</span><input value={form.period} onChange={e => setForm({...form, period: e.target.value, status: 'draft'})} placeholder="2026.06 - 2026.09"/></label>{fields.map(f => <label className="field" key={f.key}><span>{f.label}</span><textarea className={f.tall ? 'tall' : ''} value={String(form[f.key])} onChange={e => setForm({...form, [f.key]: e.target.value, status: 'draft'})} placeholder={f.placeholder}/></label>)}<label className="field"><span>能力标签（使用逗号分隔）</span><input value={form.skills.join(', ')} onChange={e => setForm({...form, skills: e.target.value.split(/[,，]/).map(x => x.trim()).filter(Boolean), status: 'draft'})} placeholder="需求分析, RAG, 原型设计"/></label>
     {editingId && <div className="agent-question-card"><div className="question-head"><div><Sparkles size={17}/> Agent 追问</div><Button variant="ghost" onClick={ask} disabled={busy}><RefreshCw size={15}/> 生成问题</Button></div><p className="question-intro">让 Agent 找出最值得补充的事实，避免空泛润色。</p>{followup && <><blockquote>{followup.question}</blockquote><small>追问原因：{followup.reason}</small><textarea value={answer} onChange={e => setAnswer(e.target.value)} placeholder="用真实细节回答，暂不自动保存。"/><Button variant="secondary" onClick={submitAnswer} disabled={busy || answer.trim().length < 2}>整理成更新建议 <ArrowRight size={15}/></Button></>}{proposal && <div className="proposal"><b>建议更新「{fieldName(proposal.field)}」</b><p>{proposal.proposed_value}</p><small>{proposal.reason}</small><Button onClick={acceptProposal}><Check size={15}/> 填入表单（待保存）</Button></div>}</div>}
     <label className="confirm-row"><input type="checkbox" checked={form.status === 'confirmed'} onChange={e => setForm({...form, status: e.target.checked ? 'confirmed' : 'draft'})}/><div><strong>我已核对以上信息，确认其真实准确</strong><p>只有确认的内容会进入职业故事；修改事实后需要重新确认。</p></div></label></div><div className="drawer-footer">{editingId && <Button variant="ghost" className="text-danger" onClick={() => remove(editingId)}><Trash2 size={16}/> 删除</Button>}<div className="drawer-footer-right"><Button variant="secondary" onClick={() => setForm(null)}>取消</Button><Button onClick={saveForm} disabled={busy || !form.title.trim()}><Check size={16}/> 保存经历</Button></div></div></div></div>}
+    {saveSuccess && <div className="saved-modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setSaveSuccess(null); }}>
+      <div className="saved-modal" role="dialog" aria-modal="true" aria-labelledby="saved-modal-title">
+        <div className="saved-modal-icon"><CheckCircle2 size={34} strokeWidth={2}/></div>
+        <h2 id="saved-modal-title">经历已保存！</h2>
+        <p className="saved-modal-subtitle" title={saveSuccess.title}>「{saveSuccess.title}」已加入你的经历库</p>
+        <div className="saved-modal-detail"><div><FolderHeart size={18}/><strong>保存成功 · 经历库已更新</strong></div><p>目前仍是草稿。核对事实并确认后，才能用于岗位匹配和职业故事生成。</p></div>
+        <button className="saved-modal-button" autoFocus onClick={() => setSaveSuccess(null)}>继续整理经历 <ArrowRight size={16}/></button>
+        <button className="saved-modal-close" onClick={() => setSaveSuccess(null)} aria-label="关闭成功提示"><X size={18}/></button>
+      </div>
+    </div>}
   </div>;
 }
 function fieldName(k: keyof ExperiencePayload): string { return ({background: '项目背景', task: '目标与任务', actions: '我的具体行动', methods: '方法与技术', results: '真实结果', evidence: '证据补充'} as Record<string, string>)[k] ?? k; }
