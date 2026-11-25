@@ -39,6 +39,8 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title='Career Story Agent API', version='0.1.0', lifespan=lifespan)
+from .security import install_security
+install_security(app)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

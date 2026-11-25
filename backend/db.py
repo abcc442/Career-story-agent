@@ -1,7 +1,10 @@
+
 """SQLite storage. Raw files are processed in memory; only user-approved text is saved."""
 from __future__ import annotations
 
 import json
+import hashlib
+from contextvars import ContextVar
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -9,6 +12,24 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 DB_PATH = Path(os.getenv('CAREER_DB_PATH', str(Path(__file__).parent / 'data' / 'career.db')))
+_VISITOR_ID: ContextVar[str | None] = ContextVar('career_visitor_id', default=None)
+
+
+def set_current_visitor(visitor_id: str):
+    return _VISITOR_ID.set(visitor_id)
+
+
+def reset_current_visitor(token):
+    _VISITOR_ID.reset(token)
+
+
+def current_db_path() -> Path:
+    visitor = _VISITOR_ID.get()
+    if visitor is None:
+        return DB_PATH
+    # Never allow a visitor-supplied value to become a filesystem path.
+    hashed = hashlib.sha256(visitor.encode('utf-8')).hexdigest()
+    return DB_PATH.parent / 'visitors' / f'{hashed}.db'
 
 
 def utc_now() -> str:
@@ -17,8 +38,9 @@ def utc_now() -> str:
 
 @contextmanager
 def connection():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, timeout=10)
+    path = current_db_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
     try:
