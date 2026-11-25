@@ -1,3 +1,4 @@
+
 """Career Story Agent local-first API. Run: uvicorn backend.main:app --reload"""
 from __future__ import annotations
 
@@ -38,7 +39,18 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title='Career Story Agent API', version='0.1.0', lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=['http://localhost:5173', 'http://127.0.0.1:5173'], allow_credentials=False, allow_methods=['*'], allow_headers=['*'])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'https://abcc442.github.io',
+    ],
+    allow_credentials=False,
+    allow_methods=['*'],
+    allow_headers=['*'],
+    expose_headers=['X-Resume-Edit-Count', 'X-Resume-Skipped-Count', 'X-Resume-Template-Preserved'],
+)
 
 
 def required(table: str, record_id: int) -> dict:
@@ -737,11 +749,15 @@ def seed_demo():
 
 @app.get('/api/export')
 def export_all():
+    if os.getenv('RENDER') or os.getenv('DISABLE_ADMIN_ENDPOINTS') == '1':
+        raise HTTPException(403, detail='公开部署环境不允许批量导出数据。')
     return {name: [decode(row) for row in all_rows(name)] for name in ('experiences', 'jds', 'stories', 'interviews')}
 
 
 @app.delete('/api/data')
 def delete_all():
+    if os.getenv('RENDER') or os.getenv('DISABLE_ADMIN_ENDPOINTS') == '1':
+        raise HTTPException(403, detail='公开部署环境不允许清空全部数据。')
     with connection() as db:
         for name in ('interviews', 'stories', 'jds', 'experiences', 'agent_runs'):
             db.execute(f'DELETE FROM {name}')
